@@ -1,4 +1,3 @@
-
 import os
 import json
 import time
@@ -13,7 +12,7 @@ from pydantic import BaseModel
 # ===================== الإعدادات (من Environment Variables) =====================
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
-OWNER_ID = int(os.environ["OWNER_ID"])
+OWNER_IDS = {int(x) for x in os.environ["OWNER_ID"].split(",") if x.strip()}
 MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 PREFIX = "!"
@@ -299,12 +298,30 @@ async def handle_owner_command(message: discord.Message):
         db.execute("DELETE FROM users WHERE user_id=?", (mentioned_users[0].id,))
         db.commit()
         await message.reply("نسيته.", mention_author=False)
+    elif cmd == "servers":
+        if not bot.guilds:
+            await message.reply("ماني بأي سيرفر.", mention_author=False)
+        else:
+            text = "\n".join(f"{g.name} - `{g.id}`" for g in bot.guilds)
+            await message.reply(text[:1900], mention_author=False)
+    elif cmd == "leave":
+        if len(parts) < 2 or not parts[1].isdigit():
+            await message.reply("اكتب: `!leave أيدي_السيرفر` (شوف الأيديات من `!servers`)", mention_author=False)
+            return
+        guild = bot.get_guild(int(parts[1]))
+        if not guild:
+            await message.reply("ما لقيت هالسيرفر.", mention_author=False)
+            return
+        name = guild.name
+        await guild.leave()
+        await message.reply(f"طلعت من **{name}**.", mention_author=False)
     elif cmd == "help":
         await message.reply(
             "`!on` / `!off` تشغيل وإيقاف\n"
             "`!add [#روم]` / `!remove [#روم]` الرد العام بالروم\n"
             "`!channels` الرومات\n`!status` الحالة\n"
-            "`!who @شخص` مستوى العلاقة والملاحظات\n`!forget @شخص` مسح ذاكرته",
+            "`!who @شخص` مستوى العلاقة والملاحظات\n`!forget @شخص` مسح ذاكرته\n"
+            "`!servers` السيرفرات اللي فيها البوت\n`!leave أيدي_السيرفر` طلوع البوت من سيرفر",
             mention_author=False,
         )
 
@@ -321,7 +338,7 @@ async def on_message(message: discord.Message):
         return
 
     # أوامر المالك (تشتغل حتى لو البوت مطفي)
-    if message.author.id == OWNER_ID and message.content.startswith(PREFIX):
+    if message.author.id in OWNER_IDS and message.content.startswith(PREFIX):
         await handle_owner_command(message)
         return
 
@@ -388,3 +405,4 @@ async def on_message(message: discord.Message):
 if __name__ == "__main__":
     threading.Thread(target=run_web, daemon=True).start()
     bot.run(DISCORD_TOKEN)
+
